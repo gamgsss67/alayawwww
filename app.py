@@ -9,7 +9,7 @@ from collections import deque
 import sys
 import nest_asyncio
 
-# Asyncio fix
+# Colab için asyncio fix (Render'da da sorun olmaz)
 nest_asyncio.apply()
 
 def random_email():
@@ -18,14 +18,26 @@ def random_email():
     domainler = ["guerrillamail.info", "mailinator.com", "10minute.net"]
     return f"{rastgele_kisim}@{random.choice(domainler)}"
 
-def load_proxies():
-    try:
-        with open("calisanlar.txt", "r", encoding="utf-8") as f:
-            proxies = [line.strip() for line in f if line.strip()]
-        return proxies
-    except FileNotFoundError:
-        print("[X] calisanlar.txt bulunamadi!")
-        return []
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# !!!  PROXY LİSTENİ AŞAĞIDAKİ YERE, KENDİ PROXY'LERİNLE DEĞİŞTİR   !!!
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+PROXY_LIST = [
+    "socks4://158.178.198.31:1080",
+    "socks5://193.25.215.182:22222",
+    "socks4://152.53.53.166:1080",
+    "socks4://45.144.49.156:1080",
+    "socks4://43.162.99.202:1080",
+    "socks5://134.122.64.174:1080",
+    "socks5://121.169.46.116:1090",
+    "socks5://121.169.46.116:1090",
+    "socks5://5.42.123.61:1080",
+    "socks5://5.255.103.55:1080",
+    "socks4://77.232.142.77:31336",
+    "socks4://152.70.91.193:40000",
+    "socks5://123.0.25.156:9090",
+    "socks4://202.141.161.51:7891",
+    "socks5://185.125.201.149:7443",
+]
 
 def proxy_dict_from_string(proxy_str):
     if '://' not in proxy_str:
@@ -55,10 +67,10 @@ def kayit_ol_sync(email, referans_kodu, proxy_str):
         'accept-language': "tr",
         'Connection': 'close'
     }
-    
+
     url = "https://bvidlxuxtakdidszxeuh.supabase.co/auth/v1/signup"
     params = {'redirect_to': "https://novixlibrary.com"}
-    
+
     payload = {
         "email": email,
         "password": "den2333iz3deniz@deniz.con.tc",
@@ -70,13 +82,13 @@ def kayit_ol_sync(email, referans_kodu, proxy_str):
         "code_challenge": None,
         "code_challenge_method": None
     }
-    
+
     proxy_dict = proxy_dict_from_string(proxy_str)
-    
+
     try:
-        response = requests.post(url, params=params, json=payload, 
+        response = requests.post(url, params=params, json=payload,
                                 headers=headers, proxies=proxy_dict, timeout=5)
-        
+
         if response.status_code == 200:
             try:
                 veri = response.json()
@@ -87,9 +99,12 @@ def kayit_ol_sync(email, referans_kodu, proxy_str):
             except:
                 return False, None, "JSON error"
         else:
+            # Hata kodunu yazdır
+            print(f"API Hata Kodu: {response.status_code} - {response.text[:100]}")
             return False, None, f"HTTP {response.status_code}"
-            
+
     except Exception as e:
+        print(f"İstek Hatası: {str(e)[:100]}")
         return False, None, str(e)[:40]
 
 async def kayit_ol_async(email, referans_kodu, proxy_str, executor):
@@ -100,9 +115,9 @@ async def kayit_ol_async(email, referans_kodu, proxy_str, executor):
 async def run_for_referans(referans_kodu, hedef_kayit, thread_id, proxy_queue, proxy_lock, executor):
     basarili_thread = 0
     current_proxy = None
-    
+
     print(f"[Thread-{thread_id}] Basladi, hedef: {hedef_kayit} kayit - Ref: {referans_kodu}")
-    
+
     for i in range(hedef_kayit):
         if current_proxy is None:
             async with proxy_lock:
@@ -112,59 +127,55 @@ async def run_for_referans(referans_kodu, hedef_kayit, thread_id, proxy_queue, p
                 else:
                     print(f"[Thread-{thread_id}] Proxy kalmadi!")
                     break
-        
+
         email = random_email()
-        
+
         basarili, user_id, hata = await kayit_ol_async(email, referans_kodu, current_proxy, executor)
-        
+
         if basarili:
             print(f"[Thread-{thread_id}] [{i+1}/{hedef_kayit}] {email[:20]} -> [OK] {user_id[:8]}...")
             basarili_thread += 1
         else:
             print(f"[Thread-{thread_id}] [{i+1}/{hedef_kayit}] {email[:20]} -> [X] {hata}")
-            print(f"[Thread-{thread_id}] Proxy hata verdi, yenisi aliniyor...")
-            current_proxy = None
-    
+            current_proxy = None # Hata alınca proxy değiştir
+
     print(f"[Thread-{thread_id}] Tamamlandi! Basarili: {basarili_thread}/{hedef_kayit} - Ref: {referans_kodu}")
     return basarili_thread
 
 async def main_async(referans_kodlari, istek_sayisi, proxy_list):
     executor = ThreadPoolExecutor(max_workers=1)
     results = []
-    
+
     for idx, referans_kodu in enumerate(referans_kodlari):
         start_time = time.time()
-        
+
         print("\n" + "=" * 70)
         print(f"[{idx+1}/{len(referans_kodlari)}] ISLEM BASLIYOR: {referans_kodu}")
         print(f"[*] Hedef: {istek_sayisi} kayit")
         print("=" * 70)
-        
+
+        # Her referans kodu için proxy kuyruğunu yeniden oluştur
         proxy_queue = deque(proxy_list.copy())
         proxy_lock = asyncio.Lock()
-        
+
         task = run_for_referans(referans_kodu, istek_sayisi, 1, proxy_queue, proxy_lock, executor)
         result = await task
         results.append(result)
-        
+
         elapsed = time.time() - start_time
         print(f"\n[!] {referans_kodu} islemi {elapsed:.1f} saniyede tamamlandi. Basarili: {result}/{istek_sayisi}")
-        
+
+        # Bekleme kontrolü (son referanstan sonra bekleme)
         if idx < len(referans_kodlari) - 1:
             wait_time = 15 * 60
-            
             if elapsed < wait_time:
                 kalan_bekleme = wait_time - elapsed
                 print(f"\n[!] 15 dakika bekleniyor... ({kalan_bekleme/60:.1f} dakika)")
-                
-                for remaining in range(int(kalan_bekleme), 0, -1):
-                    if remaining % 60 == 0:
-                        print(f"[*] Kalan süre: {remaining//60} dakika {remaining%60} saniye")
-                    await asyncio.sleep(1)
+                await asyncio.sleep(kalan_bekleme)
                 print(f"[!] Bekleme bitti! Sıradaki referans koduna geçiliyor...")
             else:
                 print(f"\n[!] İşlem {elapsed/60:.1f} dakika sürdü, 15 dakika dolmuş. Direkt geçiliyor.")
-    
+
     executor.shutdown()
     return results
 
@@ -173,17 +184,17 @@ def main():
     print("SUPABASE OTOMATIK KAYIT ARACI - RENDER MODU")
     print("Her referans kodu için 225 kayıt + 15 dakika bekleme")
     print("=" * 70)
-    
-    # Proxy yükle
-    proxy_list = load_proxies()
+
+    # --- PROXY KONTROLÜ ---
+    # Artık PROXY_LIST'i doğrudan kullanıyoruz, dosyadan okumuyoruz.
+    proxy_list = PROXY_LIST
     if not proxy_list:
-        print("[X] calisanlar.txt bulunamadi!")
-        print("Proxy dosyası olmadan çalışılamaz!")
+        print("[X] PROXY_LIST boş! Lütfen kodun içindeki PROXY_LIST değişkenini doldurun.")
         return
-    
+
     print(f"[!] {len(proxy_list)} adet proxy yüklendi")
-    
-    # REFERANS KODLARI - SABİT (Senin verdiğin)
+
+    # --- REFERANS KODLARI ---
     referans_kodlari = [
         "1E72743A", "0D35F472", "EB6CB0E2", "5FFFAE00", "A7F519D9",
         "87105E74", "D157A34B", "EA1CB196", "C4690E30", "B91697A2",
@@ -193,47 +204,38 @@ def main():
         "2E2714E9", "37FCB9CF", "66310E9E", "392B4F11", "5B4B5DA6",
         "9B0815D1", "561E1124", "5C7E2D55", "73D23F01"
     ]
-    
-    print(f"\n[!] {len(referans_kodlari)} adet referans kodu yüklendi:")
-    for i, ref in enumerate(referans_kodlari):
-        print(f"    {i+1}. {ref}")
-    
-    # SABİT: Her referans kodu için 225 kayıt
+
+    print(f"\n[!] {len(referans_kodlari)} adet referans kodu yüklendi")
     istek_sayisi = 225
-    
     toplam_hedef = len(referans_kodlari) * istek_sayisi
-    toplam_bekleme = (len(referans_kodlari) - 1) * 15
     print(f"\n[!] Her referans için: {istek_sayisi} kayit")
     print(f"[!] Toplam hedef: {toplam_hedef} kayit")
-    print(f"[!] Toplam proxy: {len(proxy_list)}")
-    print(f"[!] Toplam bekleme: {toplam_bekleme} dakika (referanslar arası)")
-    print(f"[!] Tahmini toplam süre: ~{(toplam_hedef/500) + toplam_bekleme} dakika")
     print("=" * 70)
-    
+
     print("\n[!] Render'da çalışıyor... Bilgisayarını kapatabilirsin!")
     print("[!] Logları Render Dashboard'dan takip edebilirsin.")
-    
+    sys.stdout.flush()  # Çıktının hemen görünmesini sağlar
+
     try:
         start = time.time()
         loop = asyncio.get_event_loop()
         results = loop.run_until_complete(main_async(referans_kodlari, istek_sayisi, proxy_list))
         elapsed = time.time() - start
-        
+
         print("\n" + "=" * 70)
         print("ISLEM TAMAMLANDI!")
         print(f"[OK] Toplam Basarili: {sum(results)}/{toplam_hedef}")
         print(f"[*] Basari Orani: %{(sum(results)/toplam_hedef*100):.1f}")
         print(f"[*] Gecen Sure: {elapsed/60:.1f} dakika ({elapsed/3600:.1f} saat)")
-        
+
         print("\n[*] DETAYLI RAPOR:")
         for i, (ref, res) in enumerate(zip(referans_kodlari, results)):
             print(f"    {i+1}. {ref}: {res}/{istek_sayisi} basarili")
-        
         print("=" * 70)
-    except KeyboardInterrupt:
-        print("\n\n[!] Ctrl+C algilandi! Program durduruldu.")
     except Exception as e:
-        print(f"\n[X] Hata: {e}")
+        print(f"\n[X] BEKLENMEYEN HATA: {e}")
+        import traceback
+        traceback.print_exc() # Detaylı hata ayıklama için
 
 if __name__ == "__main__":
     main()
