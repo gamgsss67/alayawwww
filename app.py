@@ -143,6 +143,7 @@ async def run_for_referans(referans_kodu, hedef_kayit, thread_id, proxy_queue, p
     return basarili_thread
 
 async def main_async(referans_kodlari, istek_sayisi, proxy_list):
+    print("[main_async] Başladı - İlk referans koduna hazırlanıyor...", flush=True)
     executor = ThreadPoolExecutor(max_workers=1)
     results = []
 
